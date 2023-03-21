@@ -55,8 +55,8 @@ wss_server.on("connection", (ws) => {
       ws.send(`id user ${ws.id} \n list room : ${ws.room}  `);
     }
   });
-  ws.on("close", (client) => {
-    var index = wss_clients.indexOf(client);
+  ws.on("close", () => {
+    var index = wss_clients.indexOf(ws);
     if (index != -1) {
       wss_clients.splice(index, 1);
     }
@@ -117,8 +117,8 @@ var Net_server = net.createServer(function (ws) {
     }
   });
 
-  ws.on("end", (client) => {
-    var index = net_clients.indexOf(client);
+  ws.on("end", () => {
+    var index = net_clients.indexOf(ws);
     if (index != -1) {
       net_clients.splice(index, 1);
     }
