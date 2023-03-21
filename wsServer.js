@@ -83,22 +83,19 @@ var Net_server = net.createServer(function (ws) {
     if (messag.joinRoom) {
       let roomId = messag.joinRoom;
       if (user.addRoom(roomId))
-        user.sendData(`client ${ws.id}  \n joined room : ${roomId}  `);
+        user.sendData(`client ${user.getId()}  \n joined room : ${roomId}  `);
     }
 
     if (messag.leaveRoom) {
       let roomId = messag.leaveRoom;
       user.removeRoom(roomId);
-      user.write(`client ${ws.id}  \n left room : ${roomId}  `);
+      user.write(`client ${user.getId()}  \n left room : ${roomId}  `);
     }
     if (messag.getlist) {
       ws.write(` list id user ${getlistIDuser()}  \n list room : ${room}  `);
     }
     if (messag.getmyself) {
-      console.log(
-        `count clients wss ${wss_clients.length} clients net  ${net_clients.length} `
-      );
-      ws.write(`id user ${ws.id} \n list room : ${ws.room}  `);
+      ws.write(`id user ${user.getId()} \n list room : ${user.room}  `);
     }
   });
 
