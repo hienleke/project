@@ -1,110 +1,95 @@
 const websocket = require("ws");
 const net = require("net");
-const short = require("short-uuid");
-const { log } = require("console");
+
+const user = require("./User");
+const User = user.User;
+const Socket_Type = user.Socket_Type;
+
+//init
+let clients = [];
 
 ////////////////////////////-------------------------//////////////////////////
-//websocketServer
+////////websocketServer
 const wss_server = new websocket.WebSocketServer({ port: 8080 });
-
-let wss_clients = [];
-let wss_rooms = [];
 
 console.log(" server ws run at port : ", wss_server.address().port);
 wss_server.on("connection", (ws) => {
-  ws.room = [];
-  ws.id = short.generate();
-  wss_clients.push(ws);
-  ws.send("your ID : \n " + ws.id);
+  let user = new User(Socket_Type.WS, ws);
+  clients.push(user);
+  user.sendData("your ID : \n " + user.id);
   ws.on("message", (message) => {
     let messag = JSON.parse(message);
 
     if (messag.chatRoom) {
       let message = messag.message;
-      let room = messag.room;
+      let room = messag.chatRoom;
       chatRoom(room, message);
     }
     if (messag.chat1vs1) {
       let message = messag.message;
-      let des = messag.des;
+      let des = messag.chat1vs1;
       chat1vs1(des, message);
     }
     if (messag.joinRoom) {
       let roomId = messag.joinRoom;
-      if (ws.room.indexOf(roomId) == -1) {
-        ws.room.push(roomId);
-        ws.send(`client ${ws.id}  \n joined room : ${roomId}  `);
-      }
-      if (wss_rooms.indexOf(roomId) == -1) wss_rooms.push(roomId);
+      user.addRoom(roomId);
+      user.sendData(`client ${user.getId()}  \n joined room : ${roomId}  `);
     }
     if (messag.leaveRoom) {
-      let roomId = messag.leaveRoom;
-      var index = ws.room.indexOf(roomId);
-      if (index > -1) {
-        ws.room.splice(index, 1);
-        ws.send(`client ${ws.id}  \n left room : ${roomId}  `);
-      }
+      let roomId = messag.joinRoom;
+      user.removeRoom(roomId);
+      user.sendData(`client ${user.getId()}  \n left room : ${roomId}  `);
     }
     if (messag.getlist) {
-      ws.send(` list id user ${getlistIDuser()}  \n list room : ${room}  `);
+      user.sendData(
+        ` list id user ${getlistIDuser()}  \n list room : ${room}  `
+      );
     }
     if (messag.getmyself) {
       console.log(
         `count clients wss ${wss_clients.length} clients net  ${net_clients.length} `
       );
-      ws.send(`id user ${ws.id} \n list room : ${ws.room}  `);
+      user.sendData(`id user ${user.getId()} \n list room : ${user.room}  `);
     }
   });
   ws.on("close", () => {
-    var index = wss_clients.indexOf(ws);
+    var index = clients.indexOf(user);
     if (index != -1) {
-      wss_clients.splice(index, 1);
+      clients.splice(index, 1);
     }
   });
 });
 
 //////////////////////////////////--------------------///////////////////////////
-// net Server
-
-let net_clients = [];
-let net_rooms = [];
+//////////////////// Net Server
 
 var Net_server = net.createServer(function (ws) {
-  ws.room = [];
-  ws.id = short.generate();
-  net_clients.push(ws);
-
-  ws.write("your ID : \n " + ws.id);
+  let user = new User(Socket_Type.Net, ws);
+  clients.push(user);
+  user.sendData("your ID : \n " + user.id);
   ws.on("data", (message) => {
     let messag = JSON.parse(message);
 
     if (messag.chatRoom) {
       let message = messag.message;
-      let room = messag.room;
+      let room = messag.chatRoom;
       chatRoom(room, message);
     }
     if (messag.chat1vs1) {
       let message = messag.message;
-      let des = messag.des;
+      let des = messag.chat1vs1;
       chat1vs1(des, message);
     }
     if (messag.joinRoom) {
       let roomId = messag.joinRoom;
-
-      if (net_rooms.indexOf(roomId) == -1) net_rooms.push(roomId);
-
-      if (ws.room.indexOf(roomId) == -1) {
-        ws.room.push(roomId);
-        ws.write(`client ${ws.id}  \n joined room : ${roomId}  `);
-      }
+      if (user.addRoom(roomId))
+        user.sendData(`client ${ws.id}  \n joined room : ${roomId}  `);
     }
+
     if (messag.leaveRoom) {
       let roomId = messag.leaveRoom;
-      var index = ws.room.indexOf(roomId);
-      if (index > -1) {
-        ws.room.splice(index, 1);
-        ws.write(`client ${ws.id}  \n left room : ${roomId}  `);
-      }
+      user.removeRoom(roomId);
+      user.write(`client ${ws.id}  \n left room : ${roomId}  `);
     }
     if (messag.getlist) {
       ws.write(` list id user ${getlistIDuser()}  \n list room : ${room}  `);
@@ -118,9 +103,9 @@ var Net_server = net.createServer(function (ws) {
   });
 
   ws.on("end", () => {
-    var index = net_clients.indexOf(ws);
+    var index = clients.indexOf(user);
     if (index != -1) {
-      net_clients.splice(index, 1);
+      clients.splice(index, 1);
     }
   });
 });
@@ -128,56 +113,32 @@ Net_server.listen(8081, () => {
   console.log(" server net run at port : ", Net_server.address().port);
 });
 
-// Send Time every 1 second
+// //////////////////Send Time every 1 second//////////////////////
 // setInterval(() => {
 //   WorldClock();
 // }, 1000);
 
 function WorldClock() {
-  wss_server.clients.forEach((client) => {
-    client.send(new Date().toISOString() + "\n" + `size netWS    `);
-  });
-
-  net_clients.forEach((client) => {
-    client.write(new Date().toISOString() + "\n");
+  clients.forEach((client) => {
+    client.sendData(new Date().toISOString() + "\n");
   });
 }
 
 function chatRoom(room, message) {
-  wss_clients.forEach((client) => {
-    if (client.room.indexOf(room) > -1) {
-      client.send(`from ${room} user ${client.id}:   ${message} \n `);
-    }
-  });
-
-  net_clients.forEach((client) => {
-    if (client.room.indexOf(room) > -1) {
-      client.write(` from  ${room}  ${client.id} :   ${message} \n`);
+  clients.forEach((client) => {
+    if (client.getRoom_index(room) > -1) {
+      client.sendData(`from ${room} user ${client.id}:   ${message} \n `);
     }
   });
 }
 function chat1vs1(destination, message) {
-  wss_clients.forEach((client) => {
-    if (client.id == destination) {
-      client.send(` from  ${client.id} :   ${message}`);
-    }
-  });
-  net_clients.forEach((client) => {
-    if (client.id == destination) {
-      client.write(` from  ${client.id} :   ${message}`);
+  clients.forEach((client) => {
+    if (client.getId() == destination) {
+      client.sendData(`from ${client.id} :   ${message}`);
     }
   });
 }
 
 function getlistIDuser() {
-  let result = [];
-  wss_clients.forEach((client) => {
-    result.push(client.id);
-  });
-
-  net_clients.forEach((client) => {
-    result.push(client.id);
-  });
-
-  return result;
+  return clients.map((iteam) => iteam.id);
 }
